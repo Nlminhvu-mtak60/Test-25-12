@@ -91,7 +91,7 @@
         bgMusic.loop = true; bgMusic.volume = 1.0;
 
         const loader = new THREE.TextureLoader();
-        const photoFiles = ['./image1.jpeg', './image2.jpeg', './image3.jpeg', './image4.jpeg', './image7.jpeg', './image6.jpeg', './image5.jpeg'];
+        const photoFiles = ['./image1.jpeg', './image2.jpeg', './image7.jpeg', './image4.jpeg', './image3.jpeg', './image6.jpeg', './image5.jpeg'];
         const photoTextures = [];
         photoFiles.forEach((f, i) => photoTextures[i] = loader.load(f));
 
@@ -485,38 +485,48 @@
             const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
             hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 
-            hands.onResults(results => {
-                ctx.clearRect(0,0,100,75); ctx.drawImage(results.image, 0, 0, 100, 75);
+                    hands.onResults(results => {
+            ctx.clearRect(0,0,100,75);
+            ctx.drawImage(results.image, 0, 0, 100, 75);
 
-                // --- Hand Logic  ---
-                if (results.multiHandLandmarks.length === 2) {
-                    const h1 = results.multiHandLandmarks[0]; const h2 = results.multiHandLandmarks[1];
-                    const distIndex = Math.hypot(h1[8].x - h2[8].x, h1[8].y - h2[8].y);
-                    const distThumb = Math.hypot(h1[4].x - h2[4].x, h1[4].y - h2[4].y);
-                    if (distIndex < 0.15 && distThumb < 0.15) {
-                        state = 'HEART'; return;
-                    }
+            // Hai tay làm HEART
+            if (results.multiHandLandmarks.length === 2) {
+                const h1 = results.multiHandLandmarks[0];
+                const h2 = results.multiHandLandmarks[1];
+                const distIndex = Math.hypot(h1[8].x - h2[8].x, h1[8].y - h2[8].y);
+                const distThumb = Math.hypot(h1[4].x - h2[4].x, h1[4].y - h2[4].y);
+                if (distIndex < 0.18 && distThumb < 0.18) { // tăng ngưỡng nhẹ
+                    state = 'HEART';
+                    return;
                 }
+            }
 
-                if(results.multiHandLandmarks.length > 0) {
-                    const lm = results.multiHandLandmarks[0];
-                    handX = lm[9].x; 
-                    const tips = [8,12,16,20]; const wrist = lm[0];
-                    let openDist = 0; tips.forEach(i => openDist += Math.hypot(lm[i].x-wrist.x, lm[i].y-wrist.y));
-                    const avgDist = openDist / 4;
-                    const pinchDist = Math.hypot(lm[4].x-lm[8].x, lm[4].y-lm[8].y);
+            if(results.multiHandLandmarks.length > 0) {
+                const lm = results.multiHandLandmarks[0];
 
-                    if (avgDist < 0.25) { 
-                        state = 'TREE'; 
-                    } else if (pinchDist < 0.05) {
-                        state = 'PHOTO'; 
-                    } else {
-                        state = 'EXPLODE'; 
-                    }
+                // Lerp để mượt hơn
+                handX = handX * 0.7 + lm[9].x * 0.3;
+
+                const tips = [8,12,16,20];
+                const wrist = lm[0];
+                let openDist = 0;
+                tips.forEach(i => openDist += Math.hypot(lm[i].x - wrist.x, lm[i].y - wrist.y));
+                const avgDist = openDist / 4;
+                const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+
+                // Tối ưu ngưỡng cử chỉ
+                if (avgDist < 0.35) {        // tay gần lại nhận TREE
+                    state = 'TREE';
+                } else if (pinchDist < 0.08) { // pinch nhận PHOTO nhanh hơn
+                    state = 'PHOTO';
                 } else {
-                    state = 'TREE'; 
+                    state = 'EXPLODE';
                 }
-            });
+            } else {
+                state = 'TREE';
+            }
+        });
+
 
             const cameraUtils = new Camera(video, {
                 onFrame: async () => { await hands.send({image: video}); }, width: 320, height: 240
